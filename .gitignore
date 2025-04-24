@@ -1,0 +1,57 @@
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# Python virtual environments
+venv/
+env/
+ENV/
+
+# PyCharm files
+.idea/
+
+# VSCode files
+.vscode/
+
+# Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+
+# Logs
+*.log
+logs/
+backend_log.txt
+console_log.txt
+frontend_log.txt
+
+# Database
+*.db
+*.sqlite3
+
+# Service account keys and credentials
+serviceAccountKey.json
+*credentials*.json
+*credential*.json
+
+# Configuration files with sensitive info
+alembic.ini
+!alembic.ini.example
+
+# Local development configuration
+local_settings.py
+
+# macOS specific files
+.DS_Store
+
+# Temporary files
+*.swp
+*.swo
+*~
