@@ -1,6 +1,6 @@
 # app/crud/crud_place.py
 
-from typing import Optional
+from typing import Optional, List
 from sqlalchemy.orm import Session
 
 from app.db import models, schemas
@@ -17,6 +17,7 @@ class CRUDPlace(
         """
         Return a Place record matching the given Google Place ID, or None.
         """
+        # Using direct ORM attribute notation instead of string column names
         return (
             db.query(self.model)
               .filter(self.model.google_place_id == google_place_id)

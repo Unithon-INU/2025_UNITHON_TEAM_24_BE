@@ -12,8 +12,7 @@ class PlaceBase(BaseModel):
     photo_references: Optional[List[str]] = None
     user_ratings_total: Optional[int] = None  # Add this field for total review count from Google
 
-    # Add these fields:
-    type: Optional[str] = None
+    # 'type' 필드 제거
     image_url: Optional[str] = None
 
     class Config:
@@ -42,7 +41,7 @@ class PlaceUpdate(BaseModel):
 
 class Place(PlaceBase):
     description: Optional[str] = None
-    type: Optional[str] = None
+    # 'type' 필드 제거
     operating_hours: Optional[List[str]] = None
     image_url: Optional[HttpUrl] = None
     tags: Optional[List[str]] = None

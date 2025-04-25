@@ -1,0 +1,16 @@
+fastapi
+uvicorn[standard]
+sqlalchemy
+SQLAlchemy-Utils
+psycopg2-binary   # PostgreSQL 사용 시. SQLite만 사용하면 필수 아님. 다른 DB는 해당 드라이버로 변경
+python-dotenv
+httpx
+firebase-admin
+python-jose[cryptography] # 토큰 처리용
+passlib[bcrypt]         # 비밀번호 해싱용 (자체 인증 시)
+email_validator         # Pydantic EmailStr 사용 시
+pydantic-settings
+# alembic             # DB 마이그레이션 관리 시 추가
+pytest
+pytest-asyncio
+httpx

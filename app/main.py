@@ -1,5 +1,6 @@
 # ./app/main.py
 
+import logging
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
@@ -10,6 +11,19 @@ from app.api.v1.api import api_router
 from app.core.config import settings
 from app.db.database import init_db # 선택 사항 (Alembic 사용 안 할 시)
 from app.core.security import initialize_firebase_admin
+
+# --- 로깅 설정 강화 - DEBUG 레벨로 변경 ---
+logging.basicConfig(
+    level=logging.DEBUG,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+)
+
+# 특히 route_generator와 google_places 모듈의 로깅 레벨을 DEBUG로 설정
+for logger_name in ["app.services.route_generator", "app.services.google_places"]:
+    logger = logging.getLogger(logger_name)
+    logger.setLevel(logging.DEBUG)
+
+logger = logging.getLogger(__name__)
 
 # --- 👇 FastAPI 앱 인스턴스 생성 (가장 먼저!) ---
 app = FastAPI(
@@ -26,16 +40,18 @@ origins = [
     "http://localhost:5905",
     "http://127.0.0.1:5905",
     "http://127.0.0.1",
+    "http://localhost:3000",  # Additional development ports
+    "http://127.0.0.1:3000",
     # Flutter 웹 앱 실제 배포 주소 추가
 ]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # 개발 시 "*" 사용, 운영 시 origins 리스트 권장
+    allow_origins=origins,  # Use specific origins instead of wildcard "*"
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-    expose_headers=["*"],  # Added to expose all headers, which helps with image responses
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+    allow_headers=["Content-Type", "Authorization", "Accept"],
+    expose_headers=["Content-Type", "Authorization"],
 )
 
 app.include_router(api_router, prefix=settings.API_V1_STR)

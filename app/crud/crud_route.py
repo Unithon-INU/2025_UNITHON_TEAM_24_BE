@@ -95,6 +95,21 @@ def get_route_by_id(
     )
 
 
+def get_without_owner_check(
+    db: Session, 
+    route_id: str
+) -> Optional[models.DbTravelRoute]:
+    """
+    소유자 확인 없이 경로 조회 (공개 경로용)
+    route_id만으로 경로를 조회합니다.
+    """
+    return (
+        db.query(models.DbTravelRoute)
+        .filter(models.DbTravelRoute.id == route_id)
+        .first()
+    )
+
+
 async def update_route(
     db: Session,
     route_id: str,

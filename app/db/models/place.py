@@ -20,15 +20,14 @@ class Place(Base):
     longitude          = Column(Float, nullable=False)
     rating             = Column(Float, nullable=True)
     user_ratings_total = Column(Integer, nullable=True)
-    types              = Column(ARRAY(String), nullable=True)
-    photo_references   = Column(ARRAY(String), nullable=True)
+    types              = Column(JSON, nullable=True)  # Changed from ARRAY(String) to JSON
+    photo_references   = Column(JSON, nullable=True)  # Changed from ARRAY(String) to JSON
     website            = Column(String, nullable=True)
     phone_number       = Column(String, nullable=True)
     description        = Column(Text, nullable=True)
-#    type               = Column(String, nullable=True)
-    operating_hours    = Column(ARRAY(String), nullable=True)
+    operating_hours    = Column(JSON, nullable=True)  # Changed from ARRAY(String) to JSON
     image_url          = Column(String, nullable=True)
-    tags               = Column(ARRAY(String), nullable=True)
+    tags               = Column(JSON, nullable=True)  # Changed from ARRAY(String) to JSON
     created_at         = Column(DateTime(timezone=True), server_default=func.now(), index=True)
 
     # 기존: 리뷰와의 양방향 매핑

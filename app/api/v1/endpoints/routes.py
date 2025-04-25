@@ -243,6 +243,72 @@ def read_route(
     )
 
 
+@router.get(
+    "/public/{route_id}",
+    response_model=schemas.TravelRoute,
+    status_code=status.HTTP_200_OK,
+    tags=["routes"],
+)
+def read_public_route(
+    *,
+    route_id: str,
+    db: Session = Depends(deps.get_db),
+) -> Any:
+    """
+    공개 경로 조회 API - 인증 없이도 접근 가능
+    """
+    # 모든 사용자의 경로를 검색
+    db_route = crud.route.get_without_owner_check(db=db, route_id=route_id)
+    if not db_route:
+        raise HTTPException(status_code=404, detail="Route not found")
+
+    # Include reviews for each place
+    places = []
+    for pid in db_route.place_google_ids:
+        p = crud.place.get_by_google_place_id(db, google_place_id=pid)
+        if p:
+            # Get reviews for this place
+            raw_reviews = crud.review.get_multi_by_place(db, place_id=p.google_place_id)
+            reviews_list = [schemas.review.Review.from_orm(r).model_dump() for r in raw_reviews]
+            
+            # Use the user_ratings_total field from the database if available
+            reviews_count = getattr(p, "user_ratings_total", None) or len(reviews_list)
+            
+            # Create place data with reviews correctly included
+            place_data = {
+                "google_place_id": p.google_place_id,
+                "name": p.name,
+                "address": p.address,
+                "latitude": p.latitude,
+                "longitude": p.longitude,
+                "types": p.types,
+                "type": getattr(p, "type", None) or "기타 장소",
+                "rating": p.rating or 0.0,
+                "photo_references": p.photo_references or [],
+                "image_url": getattr(p, "image_url", None),
+                "reviews": reviews_list,
+                "reviews_count": reviews_count,
+                "user_ratings_total": getattr(p, "user_ratings_total", None) or reviews_count,
+                "operating_hours": getattr(p, "operating_hours", None) or [],
+                "tags": getattr(p, "tags", None) or [],
+                "description": getattr(p, "description", None),
+            }
+            places.append(schemas.Place(**place_data))
+
+    return schemas.TravelRoute(
+        id=db_route.id,
+        owner_id=db_route.owner_id,
+        name=db_route.name,
+        description=db_route.description,
+        place_google_ids=db_route.place_google_ids,
+        moving_info=db_route.moving_info,
+        estimated_duration=db_route.estimated_duration,
+        total_distance=db_route.total_distance,
+        created_at=db_route.created_at,
+        places=places,
+    )
+
+
 @router.put(
     "/{route_id}",
     response_model=schemas.TravelRoute,
