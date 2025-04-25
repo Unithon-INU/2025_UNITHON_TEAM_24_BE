@@ -1,6 +1,7 @@
 import logging  # 로깅 모듈 import
 from typing import Any, List, Optional
 
+import httpx  # Add import for httpx client
 from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
@@ -426,7 +427,32 @@ async def get_place_photo(
             photo_ref = photos[0].get("photo_reference")
 
     if not photo_ref:
-        raise HTTPException(404, "No photo_reference available")
+        # Instead of 404, return a placeholder image
+        logger.info(f"No photo available for place_id={place_id}, returning placeholder")
+        # Return a placeholder image or redirect to a default image
+        try:
+            # Try to use a type-specific placeholder based on place type
+            if db_place and db_place.types:
+                place_type = next((t for t in db_place.types if t in ["restaurant", "cafe", "park", "hotel", "museum", "shopping_mall"]), "generic")
+            else:
+                place_type = "generic"
+                
+            # You can serve placeholder images from a static directory or use a CDN service
+            # For now, we'll use a public image placeholder service
+            placeholder_url = f"https://placehold.co/600x400/EFEFEF/999999?text=No+Image+Available+({place_type.title()})"
+            
+            async with httpx.AsyncClient(follow_redirects=True) as client:
+                response = await client.get(placeholder_url)
+                response.raise_for_status()
+                return Response(
+                    content=response.content,
+                    media_type=response.headers.get("Content-Type", "image/png"),
+                    headers={"Cache-Control": "public, max-age=604800"}  # Cache for 7 days
+                )
+        except Exception as placeholder_err:
+            logger.error(f"Error fetching placeholder image: {placeholder_err}")
+            # If placeholder fails, then raise 404
+            raise HTTPException(404, "No photo_reference available")
 
     try:
         content, mime = await google_places.get_google_place_photo_direct(photo_ref, max_width)

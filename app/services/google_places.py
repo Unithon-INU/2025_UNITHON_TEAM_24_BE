@@ -19,6 +19,8 @@ PLACES_DETAILS_URL = "https://maps.googleapis.com/maps/api/place/details/json"
 PLACES_PHOTO_URL = "https://maps.googleapis.com/maps/api/place/photo"
 NEARBY_SEARCH_URL = "https://maps.googleapis.com/maps/api/place/nearbysearch/json"
 TEXT_SEARCH_URL = "https://maps.googleapis.com/maps/api/place/textsearch/json"
+DIRECTIONS_API_URL = "https://maps.googleapis.com/maps/api/directions/json"
+
 async def get_place_details(place_id: str, fields: str = "name,formatted_address,geometry,rating,place_id,types,photo,user_ratings_total,reviews,opening_hours,website,url") -> Optional[Dict[str, Any]]:
     """Fetches details for a specific place."""
     if not GOOGLE_PLACES_API_KEY:
@@ -170,7 +172,7 @@ async def search_places_google(
     query : str
         Free‑form search terms (e.g. `"인천 송도 카페"`).
     region : str | None
-        Optional region bias such as country‑code top‑level domain (`"kr"`).
+        Optional region bias such as country‑code top‑level domain (`"kr"`).
     language : str
         Response language (default `"ko"`).
     limit : int
@@ -230,3 +232,64 @@ async def search_places_google(
                 break
 
     return collected[:limit]
+
+async def get_directions(
+    origin_lat: float,
+    origin_lng: float, 
+    dest_lat: float,
+    dest_lng: float,
+    mode: str = "transit",
+    language: str = "ko"
+) -> Dict[str, Any]:
+    """
+    Google Directions API를 사용하여 두 지점 간 경로 정보를 가져옴
+    
+    Parameters
+    ----------
+    origin_lat : float
+        출발지 위도
+    origin_lng : float
+        출발지 경도
+    dest_lat : float
+        도착지 위도
+    dest_lng : float
+        도착지 경도
+    mode : str
+        이동 수단(driving, walking, bicycling, transit)
+    language : str
+        언어 설정
+        
+    Returns
+    -------
+    Dict[str, Any]
+        경로 정보가 담긴 Google Directions API 응답
+    """
+    if not GOOGLE_PLACES_API_KEY:
+        logger.error("GOOGLE_PLACES_API_KEY is not configured.")
+        return {}
+
+    params = {
+        "origin": f"{origin_lat},{origin_lng}",
+        "destination": f"{dest_lat},{dest_lng}",
+        "mode": mode,  # 이동 수단(driving, walking, bicycling, transit)
+        "language": language,
+        "key": GOOGLE_PLACES_API_KEY,
+        "alternatives": "true",  # 대체 경로도 제공
+        "region": "kr"
+    }
+    
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.get(DIRECTIONS_API_URL, params=params)
+            response.raise_for_status()
+            data = response.json()
+            
+            if data.get("status") == "OK":
+                logger.info(f"Successfully fetched directions from ({origin_lat},{origin_lng}) to ({dest_lat},{dest_lng})")
+                return data
+            else:
+                logger.warning(f"Google Directions API failed: Status {data.get('status')}, Error: {data.get('error_message')}")
+                return {}
+        except Exception as e:
+            logger.exception(f"Error fetching directions: {e}")
+            return {}

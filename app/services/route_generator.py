@@ -229,6 +229,176 @@ def _convert_google_place_to_schema(data: Dict[str, Any]) -> Optional[schemas.Pl
         return None
 
 # ────────────────────────────────────────────
+# 경로 이동 정보 생성 함수
+# ────────────────────────────────────────────
+async def _generate_moving_info(places, preferences):
+    """
+    Google Directions API를 사용하여 장소 간 상세 이동 정보 생성
+    - 실제 길찾기 결과로 경로 표시
+    - 이동 시간, 거리, 이동 방법, 아이콘 등을 포함
+    """
+    moving_info = []
+    
+    if len(places) < 2:
+        return moving_info
+    
+    # 인접한 장소 간의 이동 정보 생성
+    for i in range(len(places) - 1):
+        start_place = places[i]["place_obj"]
+        end_place = places[i+1]["place_obj"]
+        
+        start_lat, start_lng = start_place.latitude, start_place.longitude
+        end_lat, end_lng = end_place.latitude, end_place.longitude
+        
+        # 두 지점 간 거리 계산 (Haversine formula)
+        from math import radians, sin, cos, sqrt, atan2
+        
+        R = 6371  # 지구 반경(km)
+        dlat = radians(end_lat - start_lat)
+        dlng = radians(end_lng - start_lng)
+        a = sin(dlat/2)**2 + cos(radians(start_lat)) * cos(radians(end_lat)) * sin(dlng/2)**2
+        c = 2 * atan2(sqrt(a), sqrt(1-a))
+        distance_km = R * c
+        
+        # 거리에 따른 이동 수단 선택
+        if distance_km < 0.8:
+            transport_mode = "walking"  # 도보
+        elif distance_km < 3:
+            transport_mode = "transit"  # 대중교통 또는 도보
+        else:
+            transport_mode = "transit"  # 대중교통
+        
+        # Google Directions API 호출
+        try:
+            directions_data = await google_places.get_directions(
+                start_lat, start_lng, 
+                end_lat, end_lng,
+                mode=transport_mode
+            )
+            
+            if directions_data and "routes" in directions_data and directions_data["routes"]:
+                route = directions_data["routes"][0]
+                legs = route["legs"][0]
+                
+                # API에서 가져온 거리 및 소요시간
+                distance = legs.get("distance", {}).get("text", f"{distance_km:.1f}km")
+                duration = legs.get("duration", {}).get("text", f"{int(distance_km * 15)}분")
+                
+                # 이동 경로 단계별 안내
+                steps = []
+                for step in legs.get("steps", []):
+                    # HTML 태그 제거
+                    import re
+                    instruction = re.sub(r'<[^>]+>', '', step.get("html_instructions", ""))
+                    
+                    # 이동 단계 정보 저장
+                    travel_mode = step.get("travel_mode", "").lower()
+                    icon = ""
+                    
+                    # 이동 수단에 따른 아이콘 선택
+                    if travel_mode == "walking":
+                        icon = "🚶"
+                    elif travel_mode == "transit":
+                        if "transit_details" in step:
+                            transit_type = step["transit_details"].get("line", {}).get("vehicle", {}).get("type", "").lower()
+                            if transit_type == "bus":
+                                icon = "🚌"
+                            elif transit_type in ["subway", "train"]:
+                                icon = "🚆"
+                            else:
+                                icon = "🚇"
+                        else:
+                            icon = "🚇"
+                    elif travel_mode == "driving":
+                        icon = "🚗"
+                    elif travel_mode == "bicycling":
+                        icon = "🚲"
+                    else:
+                        icon = "➡️"
+                        
+                    step_distance = step.get("distance", {}).get("text", "")
+                    step_duration = step.get("duration", {}).get("text", "")
+                    
+                    steps.append({
+                        "instruction": instruction,
+                        "distance": step_distance,
+                        "duration": step_duration,
+                        "travel_mode": travel_mode,
+                        "icon": icon,
+                        "polyline": step.get("polyline", {}).get("points", "")
+                    })
+                
+                summary = f"{icon} {start_place.name}에서 {end_place.name}까지 {distance} ({duration})"
+                
+                info = {
+                    "from_place_id": start_place.google_place_id,
+                    "to_place_id": end_place.google_place_id,
+                    "from_place_name": start_place.name,  # 이름 추가 
+                    "to_place_name": end_place.name,      # 이름 추가
+                    "transport_mode": transport_mode,
+                    "distance": distance,
+                    "duration": duration,
+                    "summary": summary,
+                    "steps": steps,
+                    "polyline": route.get("overview_polyline", {}).get("points", "")
+                }
+                moving_info.append(info)
+            else:
+                # API 응답이 없는 경우 기본 정보 제공
+                if transport_mode == "walking":
+                    icon = "🚶"
+                elif transport_mode == "transit":
+                    icon = "🚇"
+                else:
+                    icon = "➡️"
+                    
+                distance_text = f"{distance_km:.1f}km"
+                duration_text = f"{int(distance_km * 15)}분"  # 대략적인 소요시간 계산
+                
+                info = {
+                    "from_place_id": start_place.google_place_id,
+                    "to_place_id": end_place.google_place_id,
+                    "from_place_name": start_place.name,  # 이름 추가
+                    "to_place_name": end_place.name,      # 이름 추가
+                    "transport_mode": transport_mode,
+                    "distance": distance_text,
+                    "duration": duration_text,
+                    "summary": f"{icon} {start_place.name}에서 {end_place.name}까지 {distance_text} ({duration_text})",
+                    "steps": []
+                }
+                moving_info.append(info)
+                
+        except Exception as e:
+            logger.error(f"Error fetching directions: {e}")
+            # 에러 발생 시 기본 이동 정보 제공
+            if distance_km < 0.8:
+                icon = "🚶"  # 도보
+                transport_mode = "walking"
+                minutes = max(5, round(distance_km / 4 * 60))
+            else:
+                icon = "🚇"  # 대중교통
+                transport_mode = "transit"
+                minutes = round(distance_km / 20 * 60 + 10)
+                
+            distance_text = f"{distance_km:.1f}km"
+            duration_text = f"{minutes}분"
+                
+            info = {
+                "from_place_id": start_place.google_place_id,
+                "to_place_id": end_place.google_place_id,
+                "from_place_name": start_place.name,  # 이름 추가
+                "to_place_name": end_place.name,      # 이름 추가
+                "transport_mode": transport_mode,
+                "distance": distance_text,
+                "duration": duration_text,
+                "summary": f"{icon} {start_place.name}에서 {end_place.name}까지 {distance_text} ({duration_text})",
+                "steps": []
+            }
+            moving_info.append(info)
+    
+    return moving_info
+
+# ────────────────────────────────────────────
 # public: 경로 생성 메인
 # ────────────────────────────────────────────
 async def generate_route_logic(
@@ -467,6 +637,19 @@ async def generate_route_logic(
                 # 'type' 필드를 제거 (DB에 없는 필드)
                 if 'type' in place_create_data:
                     del place_create_data['type']
+                
+                # JSON 형식으로 변환해야 하는 필드 처리
+                if 'types' in place_create_data and isinstance(place_create_data['types'], list):
+                    place_create_data['types'] = place_create_data['types']  # PostgreSQL은 자동으로 JSON으로 변환
+
+                if 'photo_references' in place_create_data and isinstance(place_create_data['photo_references'], list):
+                    place_create_data['photo_references'] = place_create_data['photo_references']
+                
+                if 'operating_hours' in place_create_data and isinstance(place_create_data['operating_hours'], list):
+                    place_create_data['operating_hours'] = place_create_data['operating_hours']
+                
+                if 'tags' in place_create_data and isinstance(place_create_data['tags'], list):
+                    place_create_data['tags'] = place_create_data['tags']
                     
                 # create 용 객체 생성
                 place_create = schemas.PlaceCreate(**place_create_data)
@@ -549,13 +732,16 @@ async def generate_route_logic(
     if preferences.region:
         route_name = f"{preferences.region} {route_name}"
 
+    # 이동 정보 생성
+    moving_info = await _generate_moving_info(selected_places, preferences)
+
     # 3) 최종 반환 dict
     # 주의: place 객체 대신 google_place_id만 반환
     result = {
         "name": route_name,
         "description": f"{preferences.budget} 예산, {', '.join(preferences.preferred_styles or [])} 스타일",
         "places": [{"google_place_id": entry["place_obj"].google_place_id} for entry in selected_places],
-        "moving_info": [],
+        "moving_info": moving_info,
         "estimated_duration": "정보 없음",
         "total_distance": "정보 없음",
     }
