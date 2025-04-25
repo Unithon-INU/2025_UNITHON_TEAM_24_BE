@@ -10,6 +10,7 @@
 - SQLAlchemy ORM
 - Firebase Authentication
 - Google Places API
+- Docker (선택사항)
 
 ## 설치 및 환경설정
 
@@ -63,11 +64,56 @@ Firebase Admin SDK를 사용하기 위해 서비스 계정 키 파일이 필요�
 
 ### 6. 데이터베이스 설정
 
+#### 방법 1: 로컬 PostgreSQL 설치
+
 PostgreSQL 데이터베이스를 설정하고, `.env` 파일의 `DATABASE_URL`을 업데이트합니다.
 
 ```bash
 # PostgreSQL 예시
 DATABASE_URL=postgresql://username:password@localhost:5432/dbname
+```
+
+#### 방법 2: Docker를 이용한 PostgreSQL 설정 (추천)
+
+Docker를 사용하여 간편하게 PostgreSQL 데이터베이스를 실행할 수 있습니다.
+
+```bash
+# PostgreSQL 컨테이너 실행
+docker run --name uni-postgres-db \
+  -e POSTGRES_PASSWORD=your_password \
+  -e POSTGRES_USER=your_username \
+  -e POSTGRES_DB=your_database \
+  -p 5432:5432 \
+  -v pgdata:/var/lib/postgresql/data \
+  -d postgres
+```
+
+위 명령어에서 사용된 옵션들:
+- `--name`: 컨테이너 이름 설정
+- `-e`: 환경변수 설정 (데이터베이스 사용자명, 비밀번호, DB 이름)
+- `-p`: 포트 포워딩 (호스트:컨테이너)
+- `-v`: 데이터 볼륨 마운트 (데이터 영속성 보장)
+- `-d`: 백그라운드 모드로 실행
+
+그런 다음 `.env` 파일의 `DATABASE_URL`을 다음과 같이 설정합니다:
+
+```bash
+DATABASE_URL=postgresql://your_username:your_password@localhost:5432/your_database
+```
+
+Docker 컨테이너 관리 명령어:
+```bash
+# 컨테이너 상태 확인
+docker ps -a
+
+# 컨테이너 중지
+docker stop uni-postgres-db
+
+# 컨테이너 시작
+docker start uni-postgres-db
+
+# 컨테이너 삭제 (데이터는 볼륨에 보존됨)
+docker rm uni-postgres-db
 ```
 
 ### 7. 마이그레이션 실행
